@@ -35,7 +35,7 @@ class DB:
         self.parent = parent # None means this is the root DB
 
     def __getValue(self, name):
-        """ return get value for name, avoiding transactions"""
+        """ return value for name, avoiding transactions"""
         if name in self.names:
             return self.names[name]
         else:
@@ -46,7 +46,7 @@ class DB:
                 return None
 
     def __getCount(self, value):
-        """ return get count for value, avoiding transactions"""
+        """ return count for value, avoiding transactions"""
         if value in self.values:
             return self.values[value]
         else:
