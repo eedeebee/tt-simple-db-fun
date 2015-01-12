@@ -8,6 +8,7 @@ Dependencies/Environment
 ============
 
 This toy depends on Python 2.7.  It was tested on Python 2.7.6 on OS X 10.10.1 (Yosemite).
+It probably runs fine on other versions of Python and other versions of unix/linux.
 
 
 Running the server
