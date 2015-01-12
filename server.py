@@ -5,37 +5,37 @@ See http://www.thumbtack.com/challenges/simple-database
 
 import sys
 
-"""
-The DB class is an implementation of the Simple DB Challenge as described by 
-Thumbtack and referenced above.  This implementation assumes a single 
-synchronous client, which avoids concurrency issues that might 
-arise with the specified transaction behavior.
-
-The implementation uses two python dictionaries to hold the data.
-One that stores the names and values and another that keeps track of
-any values in use and their current counts.  A value of None
-represents an item that was SET at one point and is currently
-UNSET.
-
-Transactions are supported by nesting DBs - creating a new
-fresh DB for each transaction and then updating and maintaining
-it during the transaction on an ad hoc/as needed basis.  Rollbacks simply 
-trash the transient state.  And a commit updates the parent DB 
-based on current state in the child.
-
-All DB operations are constant time, O(1) on the number of variables in the DB.. 
-Transactions use limited memory (linear based on the number of variables used in the
-transaction).
-
-"""
 class DB:
+    """
+    The DB class is an implementation of the Simple DB Challenge as described by 
+    Thumbtack and referenced above.  This implementation assumes a single 
+    synchronous client, which avoids concurrency issues that might 
+    arise with the specified transaction behavior.
+
+    The implementation uses two python dictionaries to hold the data.
+    One that stores the names and values and another that keeps track of
+    any values in use and their current counts.  A value of None
+    represents an item that was SET at one point and is currently
+    UNSET.
+
+    Transactions are supported by nesting DBs - creating a new
+    fresh DB for each transaction and then updating and maintaining
+    it during the transaction on an ad hoc/as needed basis.  Rollbacks simply 
+    trash the transient state.  And a commit updates the parent DB  (and its parents...)
+    based on current state in the child.
+
+    All DB operations are constant time, O(1) on the number of variables in the DB.
+    Transactions use limited memory (linear based on the number of variables used in the
+    transaction).
+
+    """
     def __init__(self, parent):
         self.names = {}
         self.values = {}
         self.parent = parent # None means this is the root DB
 
-    """ return get value for name, avoiding transactions"""
     def __getValue(self, name):
+        """ return get value for name, avoiding transactions"""
         if name in self.names:
             return self.names[name]
         else:
@@ -45,8 +45,8 @@ class DB:
             else:
                 return None
 
-    """ return get count for value, avoiding transactions"""
     def __getCount(self, value):
+        """ return get count for value, avoiding transactions"""
         if value in self.values:
             return self.values[value]
         else:
@@ -56,15 +56,15 @@ class DB:
             else:
                 return 0
 
-    """ Update internal values and counts based on given db """
     def __merge(self, db):
+        """ Update internal values and counts based on given db """
         for name, value in db.names.iteritems():
             self.names[name] = value
         for value, count in db.values.iteritems():
             self.values[value] = count
 
-    """ Copy value from parent """
     def __copyValueFromParent(self, name):
+        """ Copy value from parent """
         parentValue = self.parent.__getValue(name)
         if parentValue:
             self.names[name] = parentValue
@@ -72,12 +72,11 @@ class DB:
                 parentCount = self.parent.__getCount(parentValue)
                 self.values[parentValue] = parentCount
 
-    """
-    SET
-    Remove any existing value for the name and decrement the count of that old value.
-    Set the new value and update the count of the new value
-    """ 
     def SET(self, args):
+        """
+        Remove any existing value for the name and decrement the count of that old value.
+        Set the new value and update the count of the new value
+        """ 
         if len(args) != 3:
             return "Syntax error: " + " ".join(args)
 
@@ -108,11 +107,10 @@ class DB:
 
         return ""
 
-    """
-    UNSET
-    remove any existing value of the name and decrement the count of that old value
-    """
     def UNSET(self, args):
+        """
+        Remove any existing value of the name and decrement the count of that old value
+        """
         if len(args) != 2:
             return "Syntax error: " + " ".join(args)
 
@@ -137,9 +135,6 @@ class DB:
         return ""
 
 
-    """
-    GET
-    """
     def GET(self, args):
         if len(args) != 2:
             return "Syntax error: " + " ".join(args)
@@ -158,9 +153,6 @@ class DB:
             else:
                 return "NULL" 
 
-    """
-    NUMEQUALTO
-    """
     def NUMEQUALTO(self, args):
         
         if len(args) != 2:
@@ -176,30 +168,26 @@ class DB:
             else:
                 return 0
 
-    """
-    BEGIN
-    @return a new db that is parent of me
-    """
     def BEGIN(self, line):
+        """
+        return a new db that is parent of me
+        """
         return "", DB(self)
 
-    """ 
-    ROLLBACK
-    @return my parent db
-    """
     def ROLLBACK(self, line):
-        # throw away current db
+        """ 
+        return my parent db
+        """
         if self.parent:
             return "", self.parent
         else:
             return "NO TRANSACTION"
 
-    """
-    COMMIT
-    Merge out data into our parent and then "recurse" to our parent
-    @return the last root db
-    """
     def COMMIT(self, line):
+        """
+        Merge our data into our parent and then "recurse" to our parent.
+        Return the last root db.
+        """
         if self.parent:
             db = self
             while 1:
