@@ -35,35 +35,45 @@ class DB:
         self.parent = parent # None means this is the root DB
 
     """ return get value for name, avoiding transactions"""
-    def getValue(self, name):
+    def __getValue(self, name):
         if name in self.names:
             return self.names[name]
         else:
             # If I don't have a name, check my parent
             if self.parent:
-                return self.parent.getValue(name)
+                return self.parent.__getValue(name)
             else:
                 return None
 
     """ return get count for value, avoiding transactions"""
-    def getCount(self, value):
+    def __getCount(self, value):
         if value in self.values:
             return self.values[value]
         else:
             # If I don't have a value, check my parent
             if self.parent:
-                return self.parent.getCount(value)
+                return self.parent.__getCount(value)
             else:
                 return 0
 
-    """ update internal values and counts based on given dictionaries """
-    def update(self, names, values):
-        for name, value in names.iteritems():
+    """ Update internal values and counts based on given db """
+    def __merge(self, db):
+        for name, value in db.names.iteritems():
             self.names[name] = value
-        for value, count in values.iteritems():
+        for value, count in db.values.iteritems():
             self.values[value] = count
 
+    """ Copy value from parent """
+    def __copyValueFromParent(self, name):
+        parentValue = self.parent.__getValue(name)
+        if parentValue:
+            self.names[name] = parentValue
+            if parentValue not in self.values:
+                parentCount = self.parent.__getCount(parentValue)
+                self.values[parentValue] = parentCount
+
     """
+    SET
     Remove any existing value for the name and decrement the count of that old value.
     Set the new value and update the count of the new value
     """ 
@@ -74,21 +84,16 @@ class DB:
         name = args[1]
         value = args[2]
 
-        # Consider we might be in a transaction.  Copy in to this DB everything we need to
+        # Consider we might be in a transaction.  Copy in to this DB everything we need 
         # from the parent to provide accurate responses.
         if self.parent:
             # if current db doesn't knows about this name or current value, get details from parent db
             if name not in self.names:
-                parentValue = self.parent.getValue(name)
-                if parentValue:
-                    self.names[name] = parentValue
-                    if parentValue not in self.values:
-                        parentCount = self.parent.getCount(parentValue)
-                        self.values[parentValue] = parentCount
+                self.__copyValueFromParent(name)
                     
             # if current db doesn't know about the new value, get details from parent db
             if value not in self.values:
-                self.values[value] = self.parent.getCount(value)
+                self.values[value] = self.parent.__getCount(value)
 
         if name in self.names:
             curvalue = self.names[name]
@@ -104,6 +109,7 @@ class DB:
         return ""
 
     """
+    UNSET
     remove any existing value of the name and decrement the count of that old value
     """
     def UNSET(self, args):
@@ -116,12 +122,7 @@ class DB:
         if self.parent:
             # if current db doesn't knows about this name or current value, get details from parent db
             if name not in self.names:
-                parentValue = self.parent.getValue(name)
-                if parentValue:
-                    self.names[name] = parentValue
-                    if parentValue not in self.values:
-                        parentCount = self.parent.getCount(parentValue)
-                        self.values[parentValue] = parentCount
+                self.__copyValueFromParent(name)
 
         if name in self.names:
             curvalue = self.names[name]
@@ -136,6 +137,9 @@ class DB:
         return ""
 
 
+    """
+    GET
+    """
     def GET(self, args):
         if len(args) != 2:
             return "Syntax error: " + " ".join(args)
@@ -154,6 +158,9 @@ class DB:
             else:
                 return "NULL" 
 
+    """
+    NUMEQUALTO
+    """
     def NUMEQUALTO(self, args):
         
         if len(args) != 2:
@@ -169,10 +176,17 @@ class DB:
             else:
                 return 0
 
+    """
+    BEGIN
+    @return a new db that is parent of me
+    """
     def BEGIN(self, line):
-        # start a new db
         return "", DB(self)
 
+    """ 
+    ROLLBACK
+    @return my parent db
+    """
     def ROLLBACK(self, line):
         # throw away current db
         if self.parent:
@@ -180,11 +194,16 @@ class DB:
         else:
             return "NO TRANSACTION"
 
+    """
+    COMMIT
+    Merge out data into our parent and then "recurse" to our parent
+    @return the last root db
+    """
     def COMMIT(self, line):
         if self.parent:
             db = self
             while 1:
-                db.parent.update(self.names, self.values)
+                db.parent.__merge(self)
                 db = db.parent
                 if db.parent == None: 
                     break
@@ -211,6 +230,7 @@ while 1:
         # Not in spec, but convenient for hand testing 
         cmd = args[0].upper() 
 
+        # Special handling
         if cmd == 'END':
             print "";
             sys.exit(0)
@@ -218,7 +238,7 @@ while 1:
 
         try :
             f = getattr(curdb, cmd)
-        except (AttributeError):
+        except (AttributeError):  # catches more than just unknown cmds :(`
             print "Unknown command " + cmd
         else:
             r = f(args)
